@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <title>Comando remoto | ESP32</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1220;
+      --panel: #121d2e;
+      --panel2: #18263a;
+      --text: #edf4ff;
+      --muted: #9aabc2;
+      --line: #293950;
+      --green: #16a36a;
+      --green2: #0e8051;
+      --red: #ef6461;
+      --amber: #f3b64b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; padding: 24px 16px;
+      display: grid; place-items: center;
+      background: radial-gradient(circle at top, #1b2c43 0, var(--bg) 58%);
+      color: var(--text); font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+    main { width: min(100%, 480px); }
+    .card {
+      background: rgba(18,29,46,.96); border: 1px solid var(--line);
+      border-radius: 22px; padding: 24px; box-shadow: 0 22px 70px #0006;
+    }
+    header { text-align: center; margin-bottom: 22px; }
+    .mark {
+      width: 54px; height: 54px; display: grid; place-items: center;
+      margin: 0 auto 12px; border-radius: 16px;
+      background: #173b32; color: #6ee7b7; font-size: 27px;
+    }
+    h1 { font-size: clamp(25px, 6vw, 32px); margin: 0; letter-spacing: .02em; }
+    .status {
+      display: flex; align-items: center; justify-content: center; gap: 9px;
+      margin: 20px 0; padding: 12px; border-radius: 12px;
+      background: var(--panel2); color: var(--muted); font-size: 14px;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #7b8798; }
+    .status.online { color: #8ce6bd; }
+    .status.online .dot { background: #22c982; box-shadow: 0 0 12px #22c98299; }
+    .status.error { color: #ffaaa7; }
+    .status.error .dot { background: var(--red); }
+    .fields { display: grid; gap: 11px; margin-bottom: 14px; }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
+    input {
+      width: 100%; padding: 12px 13px; border-radius: 10px;
+      border: 1px solid var(--line); background: #0c1625; color: var(--text);
+      font: inherit; font-size: 14px; outline: none;
+    }
+    input:focus { border-color: #4ba985; box-shadow: 0 0 0 3px #16a36a22; }
+    .connect-row { display: flex; gap: 10px; }
+    button {
+      border: 0; border-radius: 12px; cursor: pointer; font: inherit;
+      font-weight: 700; transition: transform .08s, filter .15s;
+    }
+    button:active { transform: scale(.985); }
+    button:disabled { cursor: not-allowed; opacity: .42; }
+    .connect {
+      flex: 1; padding: 13px; color: white; background: #2865a6;
+    }
+    .disconnect {
+      padding: 13px 15px; color: var(--text); background: #293950;
+    }
+    .section-title {
+      margin: 25px 0 11px; color: var(--muted); font-size: 12px;
+      font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+    }
+    .buttons { display: grid; gap: 12px; }
+    .command {
+      min-height: 76px; color: white;
+      font-size: 21px; letter-spacing: .03em;
+      box-shadow: 0 8px 22px #0003;
+    }
+    .command[data-command="BOTAO_1"] { background: linear-gradient(135deg, #19b875, #087b4b); }
+    .command[data-command="BOTAO_2"] { background: linear-gradient(135deg, #f05b5b, #b92535); }
+    .command[data-command="BOTAO_3"] { background: linear-gradient(135deg, #398cf0, #1852b5); }
+    .command small { display: block; margin-top: 3px; font-size: 11px; font-weight: 500; opacity: .85; }
+    .feedback {
+      margin-top: 17px; min-height: 48px; padding: 13px;
+      border: 1px solid var(--line); border-radius: 11px;
+      background: #0c1625; color: var(--muted); font-size: 13px; text-align: center;
+    }
+    .details {
+      margin-top: 18px; color: var(--muted); font-size: 11px;
+      line-height: 1.55; text-align: center;
+    }
+    @media (max-width: 380px) {
+      .card { padding: 18px; }
+      .command { min-height: 68px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <section class="card">
+    <header>
+      <div class="mark">⌁</div>
+      <h1>COMANDO REMOTO</h1>
+    </header>
+
+    <div id="status" class="status"><span class="dot"></span><span id="statusText">Desligado</span></div>
+
+    <div class="fields">
+      <label>Utilizador
+        <input id="username" autocomplete="username" placeholder="Utilizador">
+      </label>
+      <label>Password
+        <input id="password" type="password" autocomplete="current-password" placeholder="Password">
+      </label>
+    </div>
+
+    <div class="connect-row">
+      <button id="connect" class="connect">Ligar</button>
+      <button id="disconnect" class="disconnect" disabled>Desligar</button>
+    </div>
+
+    <div class="section-title">Enviar comando</div>
+    <div class="buttons">
+      <button class="command" data-command="BOTAO_1" disabled>BOTÃO 1</button>
+      <button class="command" data-command="BOTAO_2" disabled>BOTÃO 2</button>
+      <button class="command" data-command="BOTAO_3" disabled>BOTÃO 3</button>
+    </div>
+
+    <div id="feedback" class="feedback" aria-live="polite">Liga para ativar os botões.</div>
+
+  </section>
+</main>
+
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script>
+(() => {
+  const host = "h10032a7.ala.eu-central-1.emqxsl.com";
+  const port = 8084;
+  const topic = "jogo/botao";
+
+  const statusBox = document.getElementById("status");
+  const statusText = document.getElementById("statusText");
+  const feedback = document.getElementById("feedback");
+  const usernameInput = document.getElementById("username");
+  const passwordInput = document.getElementById("password");
+  const connectButton = document.getElementById("connect");
+  const disconnectButton = document.getElementById("disconnect");
+  const commandButtons = [...document.querySelectorAll(".command")];
+
+  let client = null;
+
+  function setStatus(kind, text) {
+    statusBox.className = "status" + (kind ? " " + kind : "");
+    statusText.textContent = text;
+  }
+
+  function setConnected(connected) {
+    commandButtons.forEach(button => button.disabled = !connected);
+    connectButton.disabled = connected;
+    disconnectButton.disabled = !connected;
+  }
+
+  function showFeedback(text) {
+    feedback.textContent = text;
+  }
+
+  connectButton.addEventListener("click", () => {
+    if (typeof mqtt === "undefined") {
+      setStatus("error", "Biblioteca MQTT não carregou");
+      showFeedback("Verifica a ligação à Internet e atualiza a página.");
+      return;
+    }
+
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
+
+    if (!username || !password) {
+      showFeedback("Preenche o utilizador e a password MQTT.");
+      return;
+    }
+
+    if (client) {
+      client.end(true);
+      client = null;
+    }
+
+    setStatus("", "A ligar...");
+    showFeedback("A estabelecer ligação segura.");
+
+    const clientId = "WEB_" + Math.random().toString(16).slice(2, 12);
+
+    client = mqtt.connect(`wss://${host}:${port}/mqtt`, {
+      clientId,
+      username,
+      password,
+      clean: true,
+      connectTimeout: 10000,
+      reconnectPeriod: 3000,
+      keepalive: 30
+    });
+
+    client.on("connect", () => {
+      setStatus("online", "Ligado");
+      showFeedback("Ligação estabelecida. Já podes enviar comandos.");
+      setConnected(true);
+    });
+
+    client.on("reconnect", () => {
+      setStatus("", "A tentar restabelecer ligação...");
+      setConnected(false);
+    });
+
+    client.on("offline", () => {
+      setStatus("", "Ligação perdida");
+      setConnected(false);
+    });
+
+    client.on("close", () => {
+      setStatus("", "Desligado");
+      setConnected(false);
+    });
+
+    client.on("error", error => {
+      setStatus("error", "Erro de ligação");
+      showFeedback("Não foi possível ligar. Confirma as credenciais e tenta novamente.");
+      setConnected(false);
+      console.error("MQTT error:", error);
+    });
+  });
+
+  disconnectButton.addEventListener("click", () => {
+    if (client) {
+      client.end(true);
+      client = null;
+    }
+    setStatus("", "Desligado");
+    showFeedback("Desligado.");
+    setConnected(false);
+  });
+
+  commandButtons.forEach(button => {
+    button.addEventListener("click", () => {
+      if (!client || !client.connected) {
+        showFeedback("Sem ligação. Liga primeiro.");
+        setConnected(false);
+        return;
+      }
+
+      const command = button.dataset.command;
+      button.disabled = true;
+
+      client.publish(topic, command, { qos: 0, retain: false }, error => {
+        button.disabled = false;
+        if (error) {
+          showFeedback("Erro ao publicar " + command + ".");
+        } else {
+          showFeedback("Comando enviado: " + command);
+        }
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
