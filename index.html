@@ -8,16 +8,9 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #0b1220;
-      --panel: #121d2e;
-      --panel2: #18263a;
-      --text: #edf4ff;
-      --muted: #9aabc2;
-      --line: #293950;
-      --green: #16a36a;
-      --green2: #0e8051;
-      --red: #ef6461;
-      --amber: #f3b64b;
+      --bg: #0b1220; --panel: #121d2e; --panel2: #18263a;
+      --text: #edf4ff; --muted: #9aabc2; --line: #293950;
+      --green: #16a36a; --red: #ef6461; --amber: #f3b64b;
     }
     * { box-sizing: border-box; }
     body {
@@ -26,7 +19,7 @@
       background: radial-gradient(circle at top, #1b2c43 0, var(--bg) 58%);
       color: var(--text); font-family: system-ui, -apple-system, Segoe UI, sans-serif;
     }
-    main { width: min(100%, 480px); }
+    main { width: min(100%, 520px); }
     .card {
       background: rgba(18,29,46,.96); border: 1px solid var(--line);
       border-radius: 22px; padding: 24px; box-shadow: 0 22px 70px #0006;
@@ -63,38 +56,48 @@
     }
     button:active { transform: scale(.985); }
     button:disabled { cursor: not-allowed; opacity: .42; }
-    .connect {
-      flex: 1; padding: 13px; color: white; background: #2865a6;
-    }
-    .disconnect {
-      padding: 13px 15px; color: var(--text); background: #293950;
-    }
+    .connect { flex: 1; padding: 13px; color: white; background: #2865a6; }
+    .disconnect { padding: 13px 15px; color: var(--text); background: #293950; }
     .section-title {
       margin: 25px 0 11px; color: var(--muted); font-size: 12px;
       font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
     }
     .buttons { display: grid; gap: 12px; }
     .command {
-      min-height: 76px; color: white;
-      font-size: 21px; letter-spacing: .03em;
-      box-shadow: 0 8px 22px #0003;
+      min-height: 76px; color: white; font-size: 21px;
+      letter-spacing: .03em; box-shadow: 0 8px 22px #0003;
     }
     .command[data-command="BOTAO_1"] { background: linear-gradient(135deg, #19b875, #087b4b); }
     .command[data-command="BOTAO_2"] { background: linear-gradient(135deg, #f05b5b, #b92535); }
     .command[data-command="BOTAO_3"] { background: linear-gradient(135deg, #398cf0, #1852b5); }
-    .command small { display: block; margin-top: 3px; font-size: 11px; font-weight: 500; opacity: .85; }
     .feedback {
       margin-top: 17px; min-height: 48px; padding: 13px;
       border: 1px solid var(--line); border-radius: 11px;
       background: #0c1625; color: var(--muted); font-size: 13px; text-align: center;
     }
+    .camera-panel {
+      margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line);
+    }
+    .camera-toggle {
+      width: 100%; min-height: 58px; color: white; font-size: 18px;
+      background: linear-gradient(135deg, #8b5cf6, #5b35bd);
+    }
+    .camera-toggle.active { background: linear-gradient(135deg, #d97706, #a34d08); }
+    .camera-state {
+      margin: 11px 0; color: var(--muted); font-size: 13px; text-align: center;
+    }
+    .camera-view {
+      width: 100%; min-height: 170px; display: grid; place-items: center;
+      overflow: hidden; border: 1px solid var(--line); border-radius: 13px;
+      background: #08101c; color: var(--muted); font-size: 13px;
+    }
+    .camera-view img { display: block; width: 100%; height: auto; }
     .details {
       margin-top: 18px; color: var(--muted); font-size: 11px;
       line-height: 1.55; text-align: center;
     }
     @media (max-width: 380px) {
-      .card { padding: 18px; }
-      .command { min-height: 68px; }
+      .card { padding: 18px; } .command { min-height: 68px; }
     }
   </style>
 </head>
@@ -109,11 +112,11 @@
     <div id="status" class="status"><span class="dot"></span><span id="statusText">Desligado</span></div>
 
     <div class="fields">
-      <label>Utilizador
-        <input id="username" autocomplete="username" placeholder="Utilizador">
+      <label>Utilizador MQTT
+        <input id="username" autocomplete="username" placeholder="Utilizador MQTT">
       </label>
-      <label>Password
-        <input id="password" type="password" autocomplete="current-password" placeholder="Password">
+      <label>Password MQTT
+        <input id="password" type="password" autocomplete="current-password" placeholder="Password MQTT">
       </label>
     </div>
 
@@ -131,6 +134,16 @@
 
     <div id="feedback" class="feedback" aria-live="polite">Liga para ativar os botões.</div>
 
+    <section class="camera-panel">
+      <div class="section-title">Câmara remota</div>
+      <button id="cameraToggle" class="camera-toggle" disabled>CÂMARA: INICIAR</button>
+      <div id="cameraState" class="camera-state">Liga ao MQTT para controlar a câmara.</div>
+      <div class="camera-view">
+        <span id="cameraPlaceholder">A imagem da câmara aparecerá aqui.</span>
+        <img id="cameraImage" alt="Imagem da ESP32-CAM" hidden>
+      </div>
+    </section>
+    <div class="details">Ligação MQTT segura. A câmara só publica imagens quando a transmissão é iniciada nesta página.</div>
   </section>
 </main>
 
@@ -139,7 +152,9 @@
 (() => {
   const host = "h10032a7.ala.eu-central-1.emqxsl.com";
   const port = 8084;
-  const topic = "jogo/botao";
+  const commandTopic = "jogo/botao";
+  const cameraControlTopic = "jogo/camera/controlo";
+  const cameraFrameTopic = "jogo/camera/frame";
 
   const statusBox = document.getElementById("status");
   const statusText = document.getElementById("statusText");
@@ -149,22 +164,52 @@
   const connectButton = document.getElementById("connect");
   const disconnectButton = document.getElementById("disconnect");
   const commandButtons = [...document.querySelectorAll(".command")];
+  const cameraToggle = document.getElementById("cameraToggle");
+  const cameraState = document.getElementById("cameraState");
+  const cameraImage = document.getElementById("cameraImage");
+  const cameraPlaceholder = document.getElementById("cameraPlaceholder");
 
   let client = null;
+  let cameraActive = false;
+  let currentImageUrl = null;
+  let cameraHeartbeatTimer = null;
 
   function setStatus(kind, text) {
     statusBox.className = "status" + (kind ? " " + kind : "");
     statusText.textContent = text;
   }
-
   function setConnected(connected) {
     commandButtons.forEach(button => button.disabled = !connected);
     connectButton.disabled = connected;
     disconnectButton.disabled = !connected;
+    cameraToggle.disabled = !connected;
   }
-
-  function showFeedback(text) {
-    feedback.textContent = text;
+  function showFeedback(text) { feedback.textContent = text; }
+  function setCameraActive(active) {
+    cameraActive = active;
+    if (cameraHeartbeatTimer) {
+      clearInterval(cameraHeartbeatTimer);
+      cameraHeartbeatTimer = null;
+    }
+    if (active && client && client.connected) {
+      cameraHeartbeatTimer = setInterval(() => {
+        if (client && client.connected && cameraActive) {
+          client.publish(cameraControlTopic, "PING", { qos: 0, retain: false });
+        }
+      }, 10000);
+    }
+    cameraToggle.textContent = active ? "CÂMARA: PARAR" : "CÂMARA: INICIAR";
+    cameraToggle.classList.toggle("active", active);
+    cameraState.textContent = active
+      ? "Pedido de captura enviado. À espera das imagens..."
+      : "Câmara parada.";
+    if (!active) {
+      cameraImage.hidden = true;
+      cameraPlaceholder.hidden = false;
+      cameraPlaceholder.textContent = "A transmissão está parada.";
+      if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
+      currentImageUrl = null;
+    }
   }
 
   connectButton.addEventListener("click", () => {
@@ -173,56 +218,60 @@
       showFeedback("Verifica a ligação à Internet e atualiza a página.");
       return;
     }
-
     const username = usernameInput.value.trim();
     const password = passwordInput.value;
-
     if (!username || !password) {
       showFeedback("Preenche o utilizador e a password MQTT.");
       return;
     }
-
-    if (client) {
-      client.end(true);
-      client = null;
-    }
+    if (client) { client.end(true); client = null; }
 
     setStatus("", "A ligar...");
     showFeedback("A estabelecer ligação segura.");
-
     const clientId = "WEB_" + Math.random().toString(16).slice(2, 12);
-
     client = mqtt.connect(`wss://${host}:${port}/mqtt`, {
-      clientId,
-      username,
-      password,
-      clean: true,
-      connectTimeout: 10000,
-      reconnectPeriod: 3000,
-      keepalive: 30
+      clientId, username, password, clean: true,
+      connectTimeout: 10000, reconnectPeriod: 3000, keepalive: 30
     });
 
     client.on("connect", () => {
       setStatus("online", "Ligado");
       showFeedback("Ligação estabelecida. Já podes enviar comandos.");
       setConnected(true);
+      client.subscribe(cameraFrameTopic, { qos: 0 }, error => {
+        if (error) cameraState.textContent = "Não foi possível subscrever o tópico da câmara.";
+      });
     });
-
+    client.on("message", (topic, payload) => {
+      if (topic !== cameraFrameTopic || !cameraActive) return;
+      const blob = new Blob([payload], { type: "image/jpeg" });
+      if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
+      currentImageUrl = URL.createObjectURL(blob);
+      cameraImage.onload = () => {
+        cameraImage.hidden = false;
+        cameraPlaceholder.hidden = true;
+        cameraState.textContent = "Imagem recebida: " + new Date().toLocaleTimeString();
+      };
+      cameraImage.onerror = () => {
+        cameraState.textContent = "Recebi dados, mas não consegui descodificar a imagem.";
+      };
+      cameraImage.src = currentImageUrl;
+    });
     client.on("reconnect", () => {
       setStatus("", "A tentar restabelecer ligação...");
       setConnected(false);
+      setCameraActive(false);
     });
-
     client.on("offline", () => {
       setStatus("", "Ligação perdida");
       setConnected(false);
+      setCameraActive(false);
     });
-
     client.on("close", () => {
       setStatus("", "Desligado");
       setConnected(false);
+      setCameraActive(false);
     });
-
     client.on("error", error => {
       setStatus("error", "Erro de ligação");
       showFeedback("Não foi possível ligar. Confirma as credenciais e tenta novamente.");
@@ -232,13 +281,14 @@
   });
 
   disconnectButton.addEventListener("click", () => {
-    if (client) {
-      client.end(true);
-      client = null;
+    if (client && client.connected && cameraActive) {
+      client.publish(cameraControlTopic, "STOP", { qos: 0, retain: false });
     }
+    if (client) { client.end(true); client = null; }
     setStatus("", "Desligado");
     showFeedback("Desligado.");
     setConnected(false);
+    setCameraActive(false);
   });
 
   commandButtons.forEach(button => {
@@ -248,19 +298,31 @@
         setConnected(false);
         return;
       }
-
       const command = button.dataset.command;
       button.disabled = true;
-
-      client.publish(topic, command, { qos: 0, retain: false }, error => {
+      client.publish(commandTopic, command, { qos: 0, retain: false }, error => {
         button.disabled = false;
-        if (error) {
-          showFeedback("Erro ao publicar " + command + ".");
-        } else {
-          showFeedback("Comando enviado: " + command);
-        }
+        if (error) showFeedback("Erro ao publicar " + command + ".");
+        else showFeedback("Comando enviado: " + command);
       });
     });
+  });
+
+  cameraToggle.addEventListener("click", () => {
+    if (!client || !client.connected) {
+      showFeedback("Sem ligação MQTT. Liga primeiro.");
+      return;
+    }
+    const next = !cameraActive;
+    client.publish(cameraControlTopic, next ? "START" : "STOP",
+      { qos: 0, retain: false }, error => {
+        if (error) {
+          showFeedback("Não foi possível enviar o comando à câmara.");
+          return;
+        }
+        setCameraActive(next);
+        showFeedback(next ? "Pedido para iniciar a câmara enviado." : "Pedido para parar a câmara enviado.");
+      });
   });
 })();
 </script>
