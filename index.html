@@ -83,6 +83,15 @@
       background: linear-gradient(135deg, #8b5cf6, #5b35bd);
     }
     .camera-toggle.active { background: linear-gradient(135deg, #d97706, #a34d08); }
+    .camera-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 10px 0; }
+    .camera-actions button { min-height: 48px; color: white; font-size: 13px; padding: 9px; }
+    .live-start, .record-start { background: linear-gradient(135deg, #16a36a, #087b4b); }
+    .live-stop, .record-stop { background: linear-gradient(135deg, #d65353, #a92335); }
+    .recording-list { display: grid; gap: 8px; margin-top: 12px; }
+    .recording-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #0c1625; font-size: 12px; }
+    .recording-item button { padding: 9px 12px; color: white; background: #2865a6; }
+    .playback-row { display: flex; gap: 8px; margin-top: 10px; }
+    .playback-row button { flex: 1; min-height: 42px; color: white; background: #6545b5; }
     .camera-state {
       margin: 11px 0; color: var(--muted); font-size: 13px; text-align: center;
     }
@@ -136,14 +145,24 @@
 
     <section class="camera-panel">
       <div class="section-title">Câmara remota</div>
-      <button id="cameraToggle" class="camera-toggle" disabled>CÂMARA: INICIAR</button>
+      <div class="camera-actions">
+        <button id="cameraStart" class="live-start" disabled>INICIAR LIVE</button>
+        <button id="cameraStop" class="live-stop" disabled>PARAR LIVE</button>
+        <button id="recordStart" class="record-start" disabled>COMEÇAR A GRAVAR</button>
+        <button id="recordStop" class="record-stop" disabled>TERMINAR GRAVAÇÃO</button>
+      </div>
       <div id="cameraState" class="camera-state">Liga ao MQTT para controlar a câmara.</div>
+      <div class="playback-row">
+        <button id="refreshRecordings" disabled>ATUALIZAR GRAVAÇÕES</button>
+        <button id="stopPlayback" disabled>PARAR REPRODUÇÃO</button>
+      </div>
+      <div id="recordingList" class="recording-list"><div class="camera-state">Ainda não foram carregadas gravações.</div></div>
       <div class="camera-view">
         <span id="cameraPlaceholder">A imagem da câmara aparecerá aqui.</span>
         <img id="cameraImage" alt="Imagem da ESP32-CAM" hidden>
       </div>
     </section>
-    <div class="details">Ligação MQTT segura. A câmara só publica imagens quando a transmissão é iniciada nesta página.</div>
+    <div class="details">Live, gravação JPEG no SD e reprodução por MQTT. Live e gravação têm comandos independentes.</div>
   </section>
 </main>
 
@@ -164,14 +183,24 @@
   const connectButton = document.getElementById("connect");
   const disconnectButton = document.getElementById("disconnect");
   const commandButtons = [...document.querySelectorAll(".command")];
-  const cameraToggle = document.getElementById("cameraToggle");
+  const cameraStart = document.getElementById("cameraStart");
+  const cameraStop = document.getElementById("cameraStop");
+  const recordStart = document.getElementById("recordStart");
+  const recordStop = document.getElementById("recordStop");
+  const refreshRecordings = document.getElementById("refreshRecordings");
+  const stopPlayback = document.getElementById("stopPlayback");
+  const recordingList = document.getElementById("recordingList");
   const cameraState = document.getElementById("cameraState");
   const cameraImage = document.getElementById("cameraImage");
   const cameraPlaceholder = document.getElementById("cameraPlaceholder");
 
   let client = null;
   let cameraActive = false;
+  let recordingActive = false;
+  let playbackActive = false;
+  let listingRecordings = false;
   let currentImageUrl = null;
+  let playbackImageUrl = null;
   let cameraHeartbeatTimer = null;
 
   function setStatus(kind, text) {
@@ -182,34 +211,57 @@
     commandButtons.forEach(button => button.disabled = !connected);
     connectButton.disabled = connected;
     disconnectButton.disabled = !connected;
-    cameraToggle.disabled = !connected;
+    [cameraStart, cameraStop, recordStart, recordStop, refreshRecordings].forEach(button => button.disabled = !connected);
+    stopPlayback.disabled = !connected || !playbackActive;
   }
   function showFeedback(text) { feedback.textContent = text; }
   function setCameraActive(active) {
     cameraActive = active;
-    if (cameraHeartbeatTimer) {
-      clearInterval(cameraHeartbeatTimer);
-      cameraHeartbeatTimer = null;
-    }
-    if (active && client && client.connected) {
-      cameraHeartbeatTimer = setInterval(() => {
-        if (client && client.connected && cameraActive) {
-          client.publish(cameraControlTopic, "PING", { qos: 0, retain: false });
-        }
-      }, 10000);
-    }
-    cameraToggle.textContent = active ? "CÂMARA: PARAR" : "CÂMARA: INICIAR";
-    cameraToggle.classList.toggle("active", active);
-    cameraState.textContent = active
-      ? "Pedido de captura enviado. À espera das imagens..."
-      : "Câmara parada.";
-    if (!active) {
-      cameraImage.hidden = true;
-      cameraPlaceholder.hidden = false;
-      cameraPlaceholder.textContent = "A transmissão está parada.";
+    cameraStart.disabled = !client || !client.connected || active;
+    cameraStop.disabled = !client || !client.connected || !active;
+    cameraState.textContent = active ? "Live ativo: a receber imagens..." : "Live parado.";
+    if (!active && !playbackActive) {
+      cameraImage.hidden = true; cameraPlaceholder.hidden = false;
+      cameraPlaceholder.textContent = "Live parado.";
       if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
       currentImageUrl = null;
     }
+  }
+  function setRecordingActive(active) {
+    recordingActive = active;
+    recordStart.disabled = !client || !client.connected || active;
+    recordStop.disabled = !client || !client.connected || !active;
+    if (active) cameraState.textContent = "A gravar frames JPEG no cartão SD a 10 FPS (QVGA).";
+    else if (!cameraActive && !playbackActive) cameraState.textContent = "Gravação parada.";
+  }
+  function publishControl(command, onSuccess) {
+    if (!client || !client.connected) { showFeedback("Sem ligação MQTT. Liga primeiro."); return; }
+    client.publish(cameraControlTopic, command, { qos: 0, retain: false }, error => {
+      if (error) showFeedback("Falha ao enviar: " + command);
+      else { showFeedback("Comando enviado: " + command); if (onSuccess) onSuccess(); }
+    });
+  }
+  function showFrame(payload, isPlayback) {
+    const blob = new Blob([payload], { type: "image/jpeg" });
+    const oldUrl = isPlayback ? playbackImageUrl : currentImageUrl;
+    if (oldUrl) URL.revokeObjectURL(oldUrl);
+    const url = URL.createObjectURL(blob);
+    if (isPlayback) playbackImageUrl = url; else currentImageUrl = url;
+    cameraImage.onload = () => {
+      cameraImage.hidden = false; cameraPlaceholder.hidden = true;
+      cameraState.textContent = (isPlayback ? "A reproduzir gravação" : "Live ativo") + " · " + new Date().toLocaleTimeString();
+    };
+    cameraImage.src = url;
+  }
+  function addRecording(name, count) {
+    const item = document.createElement("div"); item.className = "recording-item";
+    const info = document.createElement("span"); info.textContent = name + " · " + count + " frames";
+    const play = document.createElement("button"); play.textContent = "REPRODUZIR";
+    play.addEventListener("click", () => {
+      playbackActive = true; stopPlayback.disabled = false;
+      publishControl("PLAY|" + name, () => { cameraState.textContent = "A pedir reprodução de " + name + " a 10 FPS..."; });
+    });
+    item.append(info, play); recordingList.appendChild(item);
   }
 
   connectButton.addEventListener("click", () => {
@@ -238,39 +290,39 @@
       setStatus("online", "Ligado");
       showFeedback("Ligação estabelecida. Já podes enviar comandos.");
       setConnected(true);
-      client.subscribe(cameraFrameTopic, { qos: 0 }, error => {
-        if (error) cameraState.textContent = "Não foi possível subscrever o tópico da câmara.";
+      client.subscribe([cameraFrameTopic, "jogo/camera/reproducao/frame", "jogo/camera/resposta"], { qos: 0 }, error => {
+        if (error) cameraState.textContent = "Não foi possível subscrever os tópicos da câmara.";
       });
     });
     client.on("message", (topic, payload) => {
-      if (topic !== cameraFrameTopic || !cameraActive) return;
-      const blob = new Blob([payload], { type: "image/jpeg" });
-      if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
-      currentImageUrl = URL.createObjectURL(blob);
-      cameraImage.onload = () => {
-        cameraImage.hidden = false;
-        cameraPlaceholder.hidden = true;
-        cameraState.textContent = "Imagem recebida: " + new Date().toLocaleTimeString();
-      };
-      cameraImage.onerror = () => {
-        cameraState.textContent = "Recebi dados, mas não consegui descodificar a imagem.";
-      };
-      cameraImage.src = currentImageUrl;
+      if (topic === cameraFrameTopic && cameraActive) { showFrame(payload, false); return; }
+      if (topic === "jogo/camera/reproducao/frame" && playbackActive) { showFrame(payload, true); return; }
+      if (topic === "jogo/camera/resposta") {
+        const message = payload.toString();
+        if (message === "LIST_BEGIN") { listingRecordings = true; recordingList.replaceChildren(); }
+        else if (message.startsWith("REC|")) { const parts = message.split("|"); if (listingRecordings) addRecording(parts[1], parts[2] || "?"); }
+        else if (message === "LIST_END") { listingRecordings = false; if (!recordingList.children.length) recordingList.textContent = "Não existem gravações no cartão SD."; }
+        else if (message.startsWith("REC_STARTED|")) { setRecordingActive(true); cameraState.textContent = "Gravação iniciada: " + message.split("|")[1]; }
+        else if (message.startsWith("REC_STOPPED|")) { setRecordingActive(false); cameraState.textContent = "Gravação terminada. " + message.split("|")[2] + " frames guardados."; }
+        else if (message.startsWith("PLAY_STARTED|")) { playbackActive = true; stopPlayback.disabled = false; }
+        else if (message.startsWith("PLAY_ENDED|")) { playbackActive = false; stopPlayback.disabled = true; cameraState.textContent = "Reprodução terminada. " + message.split("|")[2] + " frames enviados."; }
+        else if (message.startsWith("PLAY_ERROR|") || message.startsWith("ERROR|") || message.startsWith("LIST_ERROR|")) { cameraState.textContent = "Câmara: " + message; }
+      }
     });
     client.on("reconnect", () => {
       setStatus("", "A tentar restabelecer ligação...");
       setConnected(false);
-      setCameraActive(false);
+      setCameraActive(false); setRecordingActive(false); playbackActive = false;
     });
     client.on("offline", () => {
       setStatus("", "Ligação perdida");
       setConnected(false);
-      setCameraActive(false);
+      setCameraActive(false); setRecordingActive(false); playbackActive = false;
     });
     client.on("close", () => {
       setStatus("", "Desligado");
       setConnected(false);
-      setCameraActive(false);
+      setCameraActive(false); setRecordingActive(false); playbackActive = false;
     });
     client.on("error", error => {
       setStatus("error", "Erro de ligação");
@@ -281,14 +333,14 @@
   });
 
   disconnectButton.addEventListener("click", () => {
-    if (client && client.connected && cameraActive) {
-      client.publish(cameraControlTopic, "STOP", { qos: 0, retain: false });
+    if (client && client.connected) {
+      if (cameraActive) client.publish(cameraControlTopic, "STOP", { qos: 0, retain: false });
+      if (recordingActive) client.publish(cameraControlTopic, "REC_STOP", { qos: 0, retain: false });
+      if (playbackActive) client.publish(cameraControlTopic, "PLAY_STOP", { qos: 0, retain: false });
     }
     if (client) { client.end(true); client = null; }
-    setStatus("", "Desligado");
-    showFeedback("Desligado.");
-    setConnected(false);
-    setCameraActive(false);
+    setStatus("", "Desligado"); showFeedback("Desligado."); setConnected(false);
+    setCameraActive(false); setRecordingActive(false); playbackActive = false;
   });
 
   commandButtons.forEach(button => {
@@ -308,21 +360,15 @@
     });
   });
 
-  cameraToggle.addEventListener("click", () => {
-    if (!client || !client.connected) {
-      showFeedback("Sem ligação MQTT. Liga primeiro.");
-      return;
-    }
-    const next = !cameraActive;
-    client.publish(cameraControlTopic, next ? "START" : "STOP",
-      { qos: 0, retain: false }, error => {
-        if (error) {
-          showFeedback("Não foi possível enviar o comando à câmara.");
-          return;
-        }
-        setCameraActive(next);
-        showFeedback(next ? "Pedido para iniciar a câmara enviado." : "Pedido para parar a câmara enviado.");
-      });
+  cameraStart.addEventListener("click", () => publishControl("START", () => setCameraActive(true)));
+  cameraStop.addEventListener("click", () => publishControl("STOP", () => setCameraActive(false)));
+  recordStart.addEventListener("click", () => publishControl("REC_START"));
+  recordStop.addEventListener("click", () => publishControl("REC_STOP"));
+  refreshRecordings.addEventListener("click", () => {
+    recordingList.replaceChildren(); listingRecordings = true; publishControl("LIST");
+  });
+  stopPlayback.addEventListener("click", () => {
+    publishControl("PLAY_STOP", () => { playbackActive = false; stopPlayback.disabled = true; });
   });
 })();
 </script>
