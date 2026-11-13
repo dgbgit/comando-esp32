@@ -103,7 +103,43 @@ function frame(id,payload,isPlayback){const c=cams[id],img=$('img'+id);if(c.url)
 function showPhoto(id,payload){const c=cams[id],link=$('photoLink'+id);if(c.photoUrl)URL.revokeObjectURL(c.photoUrl);c.photoUrl=URL.createObjectURL(new Blob([payload],{type:'image/jpeg'}));link.href=c.photoUrl;link.download='camara_'+id+'_fotografia.jpg';link.hidden=false;say('Fotografia da Câmara '+id+' recebida. Usa “Guardar última fotografia” no cartão da câmara.')}
 function addRecording(id,name,count){const item=document.createElement('div');item.className='recitem';const label=document.createElement('span');label.textContent=name+' · '+count+' frames';const play=document.createElement('button');play.textContent='Reproduzir';play.onclick=()=>{cams[id].play=true;renderCamera(id);send(id,'PLAY|'+name);$('state'+id).textContent='A iniciar reprodução de '+name};const del=document.createElement('button');del.className='delete';del.textContent='Apagar';del.onclick=()=>{if(confirm('Apagar definitivamente '+name+' da Câmara '+id+'?'))send(id,'DELETE|'+name)};item.append(label,play,del);$('list'+id).append(item)}
 function parseFields(parts){const o={};parts.forEach(part=>{const i=part.indexOf('=');if(i>0)o[part.slice(0,i)]=part.slice(i+1)});return o}
-function handleStatus(id,msg){const c=cams[id],v=parseFields(msg.split('|').slice(1));c.lastStatus=Date.now();c.live=v.live==='1';c.rec=v.rec==='1';c.play=v.play==='1';c.flash=v.flash==='1';renderCamera(id);updateCamOnline(id,(v.wifi==='1'&&v.mqtt==='1')?'on':'off',(v.wifi==='1'&&v.mqtt==='1')?'Online':'Sem ligação');$('mode'+id).textContent=(v.wifi==='1'?'Wi-Fi':'Sem Wi-Fi')+' · '+(v.rssi||'?')+' dBm';const res=v.resolution||'?';const mb=n=>Number(n||0).toLocaleString('pt-PT')+' MB';$('diag'+id).textContent='Wi-Fi: '+(v.wifi==='1'?'ligado':'desligado')+' ('+(v.rssi||'?')+' dBm) · MQTT: '+(v.mqtt==='1'?'ligado':'desligado')+'\nImagem: '+res+' · JPEG '+(v.quality||'?')+' · '+(v.fps||'?')+' FPS · Flash: '+(c.flash?'aceso':'apagado')+'\nmicroSD: '+(v.sd==='1'?'OK':'indisponível')+'\nCapacidade física: '+(v.card_mb?mb(v.card_mb):'n/d')+'\nEspaço total ocupado: '+(v.used_mb?mb(v.used_mb):'0 MB')+'\nEspaço total livre: '+(v.free_mb?mb(v.free_mb):'0 MB')+'\nGravações: '+(v.recordings||'0')+'\nUptime: '+(v.uptime_s||'?')+' s · RAM livre: '+(v.heap||'?')+' bytes';}
+function handleStatus(id,msg){
+ const c=cams[id],v=parseFields(msg.split('|').slice(1));
+ c.lastStatus=Date.now();
+ c.live=v.live==='1';c.rec=v.rec==='1';c.play=v.play==='1';
+ // Mantem o valor internamente para sincronizar o botao do flash,
+ // sem apresentar o estado do flash no relatorio STATUS.
+ c.flash=v.flash==='1';
+ renderCamera(id);
+ updateCamOnline(id,(v.wifi==='1'&&v.mqtt==='1')?'on':'off',
+   (v.wifi==='1'&&v.mqtt==='1')?'Online':'Sem ligacao');
+ $('mode'+id).textContent=(v.wifi==='1'?'Wi-Fi':'Sem Wi-Fi')+' · '+(v.rssi||'?')+' dBm';
+
+ const mb=n=>Number(n||0).toLocaleString('pt-PT')+' MB';
+ const cardMB=Number(v.card_mb||0);
+ const fsMB=Number(v.fs_mb||0);
+ const usedMB=Number(v.used_mb||0);
+ const freeMB=Number(v.free_mb||0);
+ const res=v.resolution||'?';
+ let cardWarning='';
+ if(v.sd!=='1'){
+   cardWarning='\nCartão microSD indisponível.';
+ } else if(cardMB>0 && fsMB>0 && fsMB < cardMB*0.95){
+   cardWarning='\nATENÇÃO: o volume FAT montado tem '+mb(fsMB)+
+     ', apesar de o cartão físico ter '+mb(cardMB)+
+     '. O ESP32 só consegue gravar no volume FAT montado. Para utilizar o resto da capacidade, é necessário criar uma única partição FAT32 com o tamanho total do cartão. A formatação apaga os dados.';
+ }
+ $('diag'+id).textContent=
+   'Wi-Fi: '+(v.wifi==='1'?'ligado':'desligado')+
+   ' ('+(v.rssi||'?')+' dBm) · MQTT: '+(v.mqtt==='1'?'ligado':'desligado')+
+   '\nImagem: '+res+' · JPEG '+(v.quality||'?')+' · '+(v.fps||'?')+' FPS'+
+   '\nCapacidade física: '+(cardMB?mb(cardMB):'n/d')+
+   '\nEspaço total ocupado: '+(v.sd==='1'?mb(usedMB):'n/d')+
+   '\nEspaço livre utilizável: '+(v.sd==='1'?mb(freeMB):'n/d')+
+   '\nGravações: '+(v.recordings||'0')+
+   cardWarning+
+   '\nUptime: '+(v.uptime_s||'?')+' s · RAM livre: '+(v.heap||'?')+' bytes';
+}
 function handleReply(id,msg){const c=cams[id];if(msg.startsWith('STATUS|')){handleStatus(id,msg);return}if(msg==='LIST_BEGIN'){c.listMode=true;$('list'+id).replaceChildren();return}if(msg.startsWith('REC|')&&c.listMode){const p=msg.split('|');addRecording(id,p[1],p[2]||'?');return}if(msg==='LIST_END'){c.listMode=false;if(!$('list'+id).children.length)$('list'+id).textContent='Sem gravações.';return}
 if(msg==='LIVE_STARTED'){c.live=true;$('state'+id).textContent='Transmissão LIVE ativa'}else if(msg==='LIVE_STOPPED'){c.live=false;$('state'+id).textContent='Transmissão parada'}else if(msg.startsWith('REC_STARTED')){c.rec=true;$('state'+id).textContent='Gravação em curso'}else if(msg.startsWith('REC_STOPPED')){c.rec=false;$('state'+id).textContent='Gravação terminada'}else if(msg.startsWith('PLAY_STARTED')){c.play=true;$('state'+id).textContent='A reproduzir'}else if(msg.startsWith('PLAY_ENDED')||msg==='PLAY_STOPPED'){c.play=false;$('state'+id).textContent='Reprodução parada/terminada'}else if(msg==='FLASH_ON'){c.flash=true}else if(msg==='FLASH_OFF'){c.flash=false}else if(msg==='STOP_ALL_DONE'){c.live=false;c.rec=false;c.play=false;c.flash=false;$('state'+id).textContent='Todas as operações paradas'}else if(msg.startsWith('PHOTO_SAVED|')){const p=msg.split('|');say('Fotografia guardada no cartão da Câmara '+id+': '+p[1]+' ('+p[2]+' bytes).'+(p[3]==='web=0'?' O ficheiro ficou apenas no microSD porque excedeu o limite de envio MQTT.':' Usa o link de guardar fotografia no cartão da câmara.'));}else if(msg==='REBOOTING'){updateCamOnline(id,'wait','A reiniciar');say('A Câmara '+id+' está a reiniciar.')}else if(msg.startsWith('DELETE_OK|')){say('Câmara '+id+': gravação apagada.');send(id,'LIST')}else if(msg.startsWith('SIZE_SET|')){say('Câmara '+id+': resolução aplicada ('+msg.split('|')[1]+').')}else if(msg.startsWith('FPS_SET|')){say('Câmara '+id+': FPS atualizados.')}else if(msg.startsWith('QUALITY_SET|')){say('Câmara '+id+': qualidade JPEG atualizada.')}else if(msg==='ERROR|RESOLUTION_NEEDS_PSRAM'){say('Câmara '+id+': esta placa não detetou PSRAM; usa QVGA ou VGA.')}else if(msg.startsWith('ERROR|')){say('Câmara '+id+': '+msg)}renderCamera(id)}
 $('connect').onclick=()=>{const username=$('username').value.trim(),password=$('password').value;if(!username||!password){say('Preenche o utilizador e a password MQTT.');return}if(typeof mqtt==='undefined'){say('A biblioteca MQTT não carregou. Verifica a ligação à Internet.');return}if(client)client.end(true);setMqttStatus('A ligar...');client=mqtt.connect(`wss://${MQTT_HOST}:${MQTT_PORT}/mqtt`,{clientId:'WEB_DUAL_'+Math.random().toString(16).slice(2,12),username,password,clean:true,connectTimeout:10000,reconnectPeriod:3000,keepalive:30});client.on('connect',()=>{setMqttStatus('Ligado ao EMQX',true);setConnected(true);const subs=[];Object.keys(cams).forEach(id=>{const t=topics(id);subs.push(t.frame,t.play,t.photo,t.reply)});client.subscribe([...subs,'jogo/botao'],err=>{if(err)say('Ligado, mas houve erro ao subscrever os tópicos.')});say('Ligação MQTT estabelecida. A consultar as duas câmaras...');Object.keys(cams).forEach(id=>send(id,'STATUS'));if(heartbeatTimer)clearInterval(heartbeatTimer);if(statusTimer)clearInterval(statusTimer);heartbeatTimer=setInterval(heartbeat,10000);statusTimer=setInterval(pollStatus,20000)});
