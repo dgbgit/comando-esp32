@@ -122,10 +122,10 @@
 
     <div class="fields">
       <label>Utilizador
-        <input id="username" autocomplete="username" placeholder="Utilizador MQTT">
+        <input id="username" autocomplete="username" placeholder="Utilizador">
       </label>
       <label>Password
-        <input id="password" type="password" autocomplete="current-password" placeholder="Password MQTT">
+        <input id="password" type="password" autocomplete="current-password" placeholder="Password">
       </label>
     </div>
 
@@ -273,7 +273,7 @@
     const username = usernameInput.value.trim();
     const password = passwordInput.value;
     if (!username || !password) {
-      showFeedback("Preenche o utilizador e a password MQTT.");
+      showFeedback("Preenche o utilizador e a password.");
       return;
     }
     if (client) { client.end(true); client = null; }
