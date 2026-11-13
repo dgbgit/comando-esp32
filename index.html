@@ -121,10 +121,10 @@
     <div id="status" class="status"><span class="dot"></span><span id="statusText">Desligado</span></div>
 
     <div class="fields">
-      <label>Utilizador MQTT
+      <label>Utilizador
         <input id="username" autocomplete="username" placeholder="Utilizador MQTT">
       </label>
-      <label>Password MQTT
+      <label>Password
         <input id="password" type="password" autocomplete="current-password" placeholder="Password MQTT">
       </label>
     </div>
@@ -141,7 +141,7 @@
       <button class="command" data-command="BOTAO_3" disabled>BOTÃO 3</button>
     </div>
 
-    <div id="feedback" class="feedback" aria-live="polite">Liga para ativar os botões.</div>
+    <div id="feedback" class="feedback" aria-live="polite">Faz login para ativar os botões.</div>
 
     <section class="camera-panel">
       <div class="section-title">Câmara remota</div>
@@ -151,7 +151,7 @@
         <button id="recordStart" class="record-start" disabled>COMEÇAR A GRAVAR</button>
         <button id="recordStop" class="record-stop" disabled>TERMINAR GRAVAÇÃO</button>
       </div>
-      <div id="cameraState" class="camera-state">Liga ao MQTT para controlar a câmara.</div>
+      <div id="cameraState" class="camera-state">Faz login para controlar a câmara.</div>
       <div class="playback-row">
         <button id="refreshRecordings" disabled>ATUALIZAR GRAVAÇÕES</button>
         <button id="stopPlayback" disabled>PARAR REPRODUÇÃO</button>
@@ -159,10 +159,10 @@
       <div id="recordingList" class="recording-list"><div class="camera-state">Ainda não foram carregadas gravações.</div></div>
       <div class="camera-view">
         <span id="cameraPlaceholder">A imagem da câmara aparecerá aqui.</span>
-        <img id="cameraImage" alt="Imagem da ESP32-CAM" hidden>
+        <img id="cameraImage" alt="" hidden>
       </div>
     </section>
-    <div class="details">Live, gravação JPEG no SD e reprodução por MQTT. Live e gravação têm comandos independentes.</div>
+    <div class="details">Live, gravação JPEG no SD e reprodução.</div>
   </section>
 </main>
 
