@@ -151,6 +151,23 @@
         <button id="recordStart" class="record-start" disabled>COMEÇAR A GRAVAR</button>
         <button id="recordStop" class="record-stop" disabled>TERMINAR GRAVAÇÃO</button>
       </div>
+      <div class="camera-actions" style="margin-top:10px">
+        <button id="flashOn" class="record-start" disabled>ACENDER FLASH</button>
+        <button id="flashOff" class="live-stop" disabled>APAGAR FLASH</button>
+      </div>
+      <div class="fields" style="margin-top:12px">
+        <label>FPS (1–30)
+          <input id="fpsValue" type="number" min="1" max="30" step="1" value="10">
+        </label>
+        <label>Qualidade JPEG (10–63)
+          <input id="qualityValue" type="number" min="10" max="63" step="1" value="15">
+        </label>
+      </div>
+      <div class="playback-row">
+        <button id="applyFps" disabled>APLICAR FPS</button>
+        <button id="applyQuality" disabled>APLICAR QUALIDADE</button>
+      </div>
+      <div class="camera-state">Qualidade JPEG: valores mais baixos dão melhor imagem e ficheiros maiores. FPS mais alto aumenta a carga no Wi-Fi e no cartão.</div>
       <div id="cameraState" class="camera-state">Liga ao MQTT para controlar a câmara.</div>
       <div class="playback-row">
         <button id="refreshRecordings" disabled>ATUALIZAR GRAVAÇÕES</button>
@@ -184,6 +201,12 @@
   const disconnectButton = document.getElementById("disconnect");
   const commandButtons = [...document.querySelectorAll(".command")];
   const cameraStart = document.getElementById("cameraStart");
+  const flashOn = document.getElementById("flashOn");
+  const flashOff = document.getElementById("flashOff");
+  const fpsValue = document.getElementById("fpsValue");
+  const qualityValue = document.getElementById("qualityValue");
+  const applyFps = document.getElementById("applyFps");
+  const applyQuality = document.getElementById("applyQuality");
   const cameraStop = document.getElementById("cameraStop");
   const recordStart = document.getElementById("recordStart");
   const recordStop = document.getElementById("recordStop");
@@ -211,7 +234,7 @@
     commandButtons.forEach(button => button.disabled = !connected);
     connectButton.disabled = connected;
     disconnectButton.disabled = !connected;
-    [cameraStart, cameraStop, recordStart, recordStop, refreshRecordings].forEach(button => button.disabled = !connected);
+    [cameraStart, cameraStop, recordStart, recordStop, refreshRecordings, flashOn, flashOff, applyFps, applyQuality].forEach(button => button.disabled = !connected);
     stopPlayback.disabled = !connected || !playbackActive;
   }
   function showFeedback(text) { feedback.textContent = text; }
@@ -390,6 +413,18 @@
   cameraStop.addEventListener("click", () => publishControl("STOP", () => setCameraActive(false)));
   recordStart.addEventListener("click", () => publishControl("REC_START", () => setRecordingActive(true)));
   recordStop.addEventListener("click", () => publishControl("REC_STOP", () => setRecordingActive(false)));
+  flashOn.addEventListener("click", () => publishControl("FLASH_ON", () => { cameraState.textContent = "Flash ligado."; }));
+  flashOff.addEventListener("click", () => publishControl("FLASH_OFF", () => { cameraState.textContent = "Flash desligado."; }));
+  applyFps.addEventListener("click", () => {
+    const fps = Number(fpsValue.value);
+    if (!Number.isInteger(fps) || fps < 1 || fps > 30) { showFeedback("FPS deve estar entre 1 e 30."); return; }
+    publishControl("FPS|" + fps, () => { cameraState.textContent = "FPS configurado: " + fps + "."; });
+  });
+  applyQuality.addEventListener("click", () => {
+    const quality = Number(qualityValue.value);
+    if (!Number.isInteger(quality) || quality < 10 || quality > 63) { showFeedback("Qualidade JPEG deve estar entre 10 e 63."); return; }
+    publishControl("QUALITY|" + quality, () => { cameraState.textContent = "Qualidade JPEG configurada: " + quality + "."; });
+  });
   refreshRecordings.addEventListener("click", () => {
     recordingList.replaceChildren(); listingRecordings = true; publishControl("LIST");
   });
