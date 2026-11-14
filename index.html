@@ -125,9 +125,7 @@ function handleStatus(id,msg){
  if(v.sd!=='1'){
    cardWarning='\nCartão microSD indisponível.';
  } else if(cardMB>0 && fsMB>0 && fsMB < cardMB*0.95){
-   cardWarning='\nATENÇÃO: o volume FAT montado tem '+mb(fsMB)+
-     ', apesar de o cartão físico ter '+mb(cardMB)+
-     '. O ESP32 só consegue gravar no volume FAT montado. Para utilizar o resto da capacidade, é necessário criar uma única partição FAT32 com o tamanho total do cartão. A formatação apaga os dados.';
+   cardWarning='\nATENÇÃO: SD FULL!!.';
  }
  $('diag'+id).textContent=
    'Wi-Fi: '+(v.wifi==='1'?'ligado':'desligado')+
