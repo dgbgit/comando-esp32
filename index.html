@@ -21,23 +21,23 @@ button{border:0;border-radius:10px;padding:11px 12px;min-height:43px;color:white
 </head>
 <body>
 <main>
-<header><div><h1>PAINEL DE CÂMARAS</h1><div class="subtitle">ESP32-CAM · monitorização e controlo remoto</div></div><div id="mqttStatus" class="status-global"><i class="dot"></i><span id="mqttStatusText">MQTT desligado</span></div></header>
+<header><div><h1>PAINEL DE CÂMARAS</h1><div class="subtitle">Monitorização e Controlo Remoto</div></div><div id="mqttStatus" class="status-global"><i class="dot"></i><span id="mqttStatusText">MQTT desligado</span></div></header>
 
 <section class="card">
-<h2>Ligação segura ao EMQX</h2>
+<h2>Ligação ao servidor</h2>
 <div class="fields">
-<label>Utilizador MQTT<input id="username" autocomplete="username" placeholder="Utilizador MQTT"></label>
-<label>Password MQTT<input id="password" type="password" autocomplete="current-password" placeholder="Password MQTT"></label>
+<label>Utilizador<input id="username" autocomplete="username" placeholder="Utilizador"></label>
+<label>Password<input id="password" type="password" autocomplete="current-password" placeholder="Password"></label>
 </div>
 <div class="row"><button id="connect" class="primary">Ligar</button><button id="disconnect" class="secondary" disabled>Desligar</button></div>
-<div id="feedback" class="feedback" aria-live="polite">Introduz as credenciais MQTT e liga para começar.</div>
+<div id="feedback" class="feedback" aria-live="polite"></div>
 </section>
 
 <section class="card">
 <h2>Definições gerais e imagem</h2>
 <div class="tools-title">Aplicar configurações a</div>
-<div class="selector"><button data-select="1" class="selected">Câmara 1</button><button data-select="2">Câmara 2</button><button data-select="both">Ambas</button></div>
-<p class="hint">Escolhe a câmara ou ambas e aplica as definições de imagem abaixo. Os controlos LIVE, gravação, flash, fotografia e parar tudo continuam individuais em cada cartão.</p>
+<div class="selector"><button data-select="1" class="selected">Câmara 1</button><button data-select="2">Câmara 2</button><button data-select="both">Todas</button></div>
+<p class="hint"></p>
 <div class="tools-title" style="margin-top:14px">Imagem e desempenho</div>
 <div class="settings">
 <label class="wide">Resolução<select id="resolution"><option value="QVGA">QVGA · 320 × 240</option><option value="VGA">VGA · 640 × 480</option><option value="SVGA">SVGA · 800 × 600</option><option value="XGA">XGA · 1024 × 768</option><option value="SXGA">SXGA · 1280 × 1024</option><option value="UXGA">UXGA · 1600 × 1200</option></select></label>
@@ -49,7 +49,7 @@ button{border:0;border-radius:10px;padding:11px 12px;min-height:43px;color:white
 </section>
 
 <section class="card">
-<h2>Estado e controlo individual</h2>
+<h2></h2>
 <div class="camera-grid">
 <article class="camera" id="camera1">
  <div class="camhead"><h3>Câmara 1</h3><span id="online1" class="cam-online wait"><i class="dot"></i><span>Sem estado</span></span></div>
