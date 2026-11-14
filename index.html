@@ -22,7 +22,7 @@ button{border:0;border-radius:10px;padding:11px 12px;min-height:43px;color:white
 .sleep-meta{display:inline-flex;align-items:center;padding:5px 7px;border-radius:8px;background:#20334a;border:1px solid #38516c;color:#c8d9eb;font-size:10px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
 .sleep-meta.sleeping{background:#492b31;border-color:#85424b;color:#ffd1d1}
 @media(max-width:420px){.cam-status-right{gap:4px}.sleep-meta{font-size:9px;padding:4px 5px}}
-</style>
+.sleep-meta[hidden]{display:none!important}</style>
 </head>
 <body>
 <main>
@@ -109,7 +109,7 @@ function setManualSleep(id,sleeping){if(!client||!client.connected){say('Sem lig
 function applyPollInterval(id){if(!client||!client.connected){say('Sem ligação MQTT.');return}const seconds=Number($('pollInterval'+id).value);client.publish(topics(id).pollInterval,String(seconds),{qos:1,retain:true},err=>{if(err)say('Não foi possível guardar o intervalo da Câmara '+id+'.');else{say('Intervalo de verificação da Câmara '+id+' atualizado. Se estiver em Deep Sleep, a nova frequência entra em vigor no próximo despertar.');renderSleepMeta(id);}});}
 function pollLabel(seconds){const n=Number(seconds);if(n===0)return 'Sempre ligada';if(n===600)return '10 minutos';return n+' segundos'}
 function formatElapsed(ms){const s=Math.max(0,Math.floor(ms/1000)),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),r=s%60;return h>0?String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(r).padStart(2,'0'):String(m).padStart(2,'0')+':'+String(r).padStart(2,'0')}
-function renderSleepMeta(id){const c=cams[id],el=$('sleepMeta'+id);if(!el)return;const selected=Number($('pollInterval'+id).value);const interval=pollLabel(Number.isFinite(selected)?selected:10);if(c.sleeping){const elapsed=c.sleepStartEpoch>0?Date.now()-c.sleepStartEpoch*1000:null;el.textContent='Sleep: '+interval+(elapsed!==null&&elapsed>=0?' · há '+formatElapsed(elapsed):' · tempo indisponível');el.classList.add('sleeping')}else{el.textContent='Sleep: '+interval;el.classList.remove('sleeping')}}
+function renderSleepMeta(id){const c=cams[id],el=$('sleepMeta'+id);if(!el)return;const selected=Number($('pollInterval'+id).value);const seconds=Number.isFinite(selected)?selected:10;if(!c.sleeping){el.textContent='';el.hidden=true;el.classList.remove('sleeping');return}const interval=seconds===0?'sempre ligada':seconds+'s';const elapsed=c.sleepStartEpoch>0?Date.now()-c.sleepStartEpoch*1000:null;el.hidden=false;el.textContent='Em sleep ('+interval+') - '+(elapsed!==null&&elapsed>=0?'há '+formatElapsed(elapsed):'a sincronizar hora...');el.classList.add('sleeping')}
 function refreshSleepMeta(){Object.keys(cams).forEach(renderSleepMeta)}
 
 function heartbeat(){if(!client||!client.connected)return;Object.keys(cams).forEach(id=>{const c=cams[id];if(c.live||c.rec||c.play)send(id,'PING')})}
